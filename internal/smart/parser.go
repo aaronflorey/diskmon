@@ -17,6 +17,7 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 	}
 
 	attrs := parseAttributes(data)
+	attrMap := buildAttrMap(attrs)
 
 	info := DriveInfo{
 		Device: device,
@@ -25,6 +26,7 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 		WWN:    strAt(data, "wwn", "naa"),
 	}
 
+	// Temperature: prefer top-level temperature.current, then NVMe log
 	temp := firstInt64(data,
 		[]string{"temperature", "current"},
 		[]string{"nvme_smart_health_information_log", "temperature"},
@@ -34,25 +36,23 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 		temp = &c
 	}
 
-	pending := firstInt64(data, []string{"ata_smart_attributes", "table", "197", "raw", "value"})
-	realloc := firstInt64(data, []string{"ata_smart_attributes", "table", "5", "raw", "value"})
-	uncorr := firstInt64(data,
-		[]string{"ata_smart_attributes", "table", "198", "raw", "value"},
-		[]string{"nvme_smart_health_information_log", "media_errors"},
-	)
+	// Critical counters: use attribute ID lookup only (never array index)
+	realloc := attrRawValueByID(attrMap, 5)
+	pending := attrRawValueByID(attrMap, 197)
+	uncorr := attrRawValueByID(attrMap, 198)
+	udmaCRC := attrRawValueByID(attrMap, 199)
+	reportedUncorr := attrRawValueByID(attrMap, 187)
+	cmdTimeout := attrRawValueByID(attrMap, 188)
+
+	// NVMe fallback for uncorrectable
+	if uncorr == nil {
+		uncorr = firstInt64(data, []string{"nvme_smart_health_information_log", "media_errors"})
+	}
+
+	// Wear level (NVMe)
 	wear := firstInt64(data,
 		[]string{"nvme_smart_health_information_log", "percentage_used"},
 	)
-
-	if realloc == nil {
-		realloc = attrRawByID(attrs, 5)
-	}
-	if pending == nil {
-		pending = attrRawByID(attrs, 197)
-	}
-	if uncorr == nil {
-		uncorr = attrRawByID(attrs, 198)
-	}
 
 	criticalWarning := false
 	if cw := firstInt64(data, []string{"nvme_smart_health_information_log", "critical_warning"}); cw != nil && *cw > 0 {
@@ -73,6 +73,9 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 		ReallocatedSectors:   realloc,
 		PendingSectors:       pending,
 		UncorrectableSectors: uncorr,
+		UDMACRCErrors:        udmaCRC,
+		ReportedUncorrect:    reportedUncorr,
+		CommandTimeout:       cmdTimeout,
 		WearLevel:            wear,
 		FailingNow:           failingNow,
 		CriticalWarning:      criticalWarning,
@@ -94,24 +97,54 @@ func parseAttributes(data rawSmartData) []SmartAttribute {
 		if !ok {
 			continue
 		}
+
+		var rawValue uint64
+		if v, ok := getNumber(m, "raw", "value"); ok {
+			rawValue = uint64(v)
+		}
+
+		rawStr := fmt.Sprintf("%v", nested(m, "raw", "string"))
+		if strings.TrimSpace(rawStr) == "<nil>" || strings.TrimSpace(rawStr) == "" {
+			rawStr = fmt.Sprintf("%d", rawValue)
+		}
+
+		whenFailed := strAt(m, "when_failed")
+
 		attr := SmartAttribute{
 			AttributeID: int(numberAt(m, "id")),
 			Name:        strAt(m, "name"),
 			Value:       int(numberAt(m, "value")),
 			Worst:       int(numberAt(m, "worst")),
 			Threshold:   int(numberAt(m, "thresh")),
-			Raw:         fmt.Sprintf("%v", nested(m, "raw", "string")),
-		}
-		if strings.TrimSpace(attr.Raw) == "<nil>" || strings.TrimSpace(attr.Raw) == "" {
-			if v, ok := getNumber(m, "raw", "value"); ok {
-				attr.Raw = fmt.Sprintf("%.0f", v)
-			}
+			Raw:         rawStr,
+			RawValue:    rawValue,
+			WhenFailed:  whenFailed,
 		}
 		attrs = append(attrs, attr)
 	}
 	return attrs
 }
 
+// buildAttrMap indexes attributes by their ID for O(1) lookup.
+func buildAttrMap(attrs []SmartAttribute) map[int]SmartAttribute {
+	m := make(map[int]SmartAttribute, len(attrs))
+	for _, a := range attrs {
+		m[a.AttributeID] = a
+	}
+	return m
+}
+
+// attrRawValueByID looks up an attribute by ID and returns its raw value.
+func attrRawValueByID(m map[int]SmartAttribute, id int) *int64 {
+	attr, ok := m[id]
+	if !ok {
+		return nil
+	}
+	v := int64(attr.RawValue)
+	return &v
+}
+
+// attrRawByID is kept for backward compatibility but uses string parsing.
 func attrRawByID(attrs []SmartAttribute, id int) *int64 {
 	for _, attr := range attrs {
 		if attr.AttributeID == id {

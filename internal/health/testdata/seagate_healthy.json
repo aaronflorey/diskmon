@@ -1,0 +1,366 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 4],
+    "exit_status": 0
+  },
+  "local_time": {
+    "time_t": 1700000000,
+    "asctime": "Tue Nov 14 2023"
+  },
+  "device": {
+    "name": "/dev/sda",
+    "type": "sat"
+  },
+  "model_family": "Seagate Exos X20",
+  "model_name": "ST20000NM007D-3DJ103",
+  "serial_number": "ZVT187E0",
+  "wwn": {
+    "naa": "5000c500"
+  },
+  "firmware_version": "SN03",
+  "in_smartctl_database": true,
+  "smart_status": {
+    "passed": true
+  },
+  "ata_smart_attributes": {
+    "revision": 10,
+    "table": [
+      {
+        "id": 1,
+        "name": "Raw_Read_Error_Rate",
+        "value": 73,
+        "worst": 63,
+        "thresh": 44,
+        "when_failed": "",
+        "flags": {
+          "value": 15,
+          "string": "POSR-+",
+          "prefailure": true,
+          "updated_always": true,
+          "performance": true,
+          "error_rate": true
+        },
+        "raw": {
+          "value": 39252824,
+          "string": "39252824"
+        }
+      },
+      {
+        "id": 3,
+        "name": "Spin_Up_Time",
+        "value": 96,
+        "worst": 96,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 3,
+          "string": "PO----",
+          "prefailure": true,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 4,
+        "name": "Start_Stop_Count",
+        "value": 100,
+        "worst": 100,
+        "thresh": 20,
+        "when_failed": "",
+        "flags": {
+          "value": 50,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 6,
+          "string": "6"
+        }
+      },
+      {
+        "id": 5,
+        "name": "Reallocated_Sector_Ct",
+        "value": 100,
+        "worst": 100,
+        "thresh": 36,
+        "when_failed": "",
+        "flags": {
+          "value": 51,
+          "string": "PO--CK",
+          "prefailure": true,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 7,
+        "name": "Seek_Error_Rate",
+        "value": 82,
+        "worst": 60,
+        "thresh": 45,
+        "when_failed": "",
+        "flags": {
+          "value": 15,
+          "string": "POSR-+",
+          "prefailure": true,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 184910997,
+          "string": "184910997"
+        }
+      },
+      {
+        "id": 9,
+        "name": "Power_On_Hours",
+        "value": 79,
+        "worst": 79,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 18,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 5234,
+          "string": "5234"
+        }
+      },
+      {
+        "id": 10,
+        "name": "Spin_Retry_Count",
+        "value": 100,
+        "worst": 100,
+        "thresh": 97,
+        "when_failed": "",
+        "flags": {
+          "value": 19,
+          "string": "PO--CK",
+          "prefailure": true,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 12,
+        "name": "Power_Cycle_Count",
+        "value": 100,
+        "worst": 100,
+        "thresh": 20,
+        "when_failed": "",
+        "flags": {
+          "value": 50,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 6,
+          "string": "6"
+        }
+      },
+      {
+        "id": 187,
+        "name": "Reported_Uncorrect",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 50,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 188,
+        "name": "Command_Timeout",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 50,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 194,
+        "name": "Temperature_Celsius",
+        "value": 38,
+        "worst": 44,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 34,
+          "string": "-O---K",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 21474836518,
+          "string": "38 (0 21 0 0 0)"
+        }
+      },
+      {
+        "id": 197,
+        "name": "Current_Pending_Sector",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 18,
+          "string": "-O--CK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 198,
+        "name": "Offline_Uncorrectable",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 16,
+          "string": "----CK",
+          "prefailure": false,
+          "updated_always": false
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 199,
+        "name": "UDMA_CRC_Error_Count",
+        "value": 200,
+        "worst": 200,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 34,
+          "string": "-O-RCK",
+          "prefailure": false,
+          "updated_always": true
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 200,
+        "name": "Multi_Zone_Error_Rate",
+        "value": 100,
+        "worst": 100,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 0,
+          "string": "------",
+          "prefailure": false,
+          "updated_always": false
+        },
+        "raw": {
+          "value": 0,
+          "string": "0"
+        }
+      },
+      {
+        "id": 240,
+        "name": "Head_Flying_Hours",
+        "value": 100,
+        "worst": 253,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 0,
+          "string": "------",
+          "prefailure": false,
+          "updated_always": false
+        },
+        "raw": {
+          "value": 1654,
+          "string": "1654"
+        }
+      },
+      {
+        "id": 241,
+        "name": "Total_LBAs_Written",
+        "value": 100,
+        "worst": 253,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 0,
+          "string": "------",
+          "prefailure": false,
+          "updated_always": false
+        },
+        "raw": {
+          "value": 3397753952,
+          "string": "3397753952"
+        }
+      },
+      {
+        "id": 242,
+        "name": "Total_LBAs_Read",
+        "value": 100,
+        "worst": 253,
+        "thresh": 0,
+        "when_failed": "",
+        "flags": {
+          "value": 0,
+          "string": "------",
+          "prefailure": false,
+          "updated_always": false
+        },
+        "raw": {
+          "value": 1539003120,
+          "string": "1539003120"
+        }
+      }
+    ]
+  },
+  "temperature": {
+    "current": 38,
+    "power_cycle_min": 21,
+    "power_cycle_max": 44,
+    "op_limit_max": 60
+  },
+  "power_on_time": {
+    "hours": 5234
+  }
+}

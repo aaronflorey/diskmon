@@ -17,6 +17,13 @@ const history = ref([])
 
 const type = computed(() => detail.value ? driveType(detail.value.device) : '')
 
+function formatDate(d) {
+  if (!d) return 'n/a'
+  const date = new Date(d)
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    + ', ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
 onMounted(async () => {
   try {
     const id = route.params.id
@@ -36,7 +43,7 @@ onMounted(async () => {
   <section>
     <router-link
       to="/"
-      class="rise mono inline-flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
+      class="rise mono inline-flex items-center gap-2 text-xs uppercase tracking-[0.15em] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
     >
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path d="M9 3L5 7L9 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -61,14 +68,14 @@ onMounted(async () => {
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 mb-2">
-              <span class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">{{ detail.device }}</span>
+              <span class="mono text-xs uppercase tracking-wider text-[var(--text-secondary)]">{{ detail.device }}</span>
               <span
-                class="mono rounded px-1 py-0.5 text-2xs uppercase"
-                :class="type === 'nvme' ? 'bg-accent/10 text-accent/60' : 'bg-white/5 text-[var(--text-tertiary)]'"
+                class="mono rounded px-1.5 py-0.5 text-2xs uppercase font-medium"
+                :class="type === 'nvme' ? 'bg-accent/10 text-accent/70' : 'bg-white/5 text-[var(--text-secondary)]'"
               >{{ type }}</span>
             </div>
             <h2 class="text-2xl font-bold tracking-tight">{{ detail.model || detail.device }}</h2>
-            <p class="mono mt-1 text-xs text-[var(--text-tertiary)]">{{ detail.serial || 'n/a' }}</p>
+            <p class="mono mt-1 text-sm text-[var(--text-secondary)]">{{ detail.serial || 'n/a' }}</p>
           </div>
           <HealthBadge :status="detail.health" />
         </div>
@@ -88,12 +95,12 @@ onMounted(async () => {
 
         <article class="rounded-xl border border-edge bg-panel p-4">
           <p class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">Power On</p>
-          <p class="mono mt-2 text-sm font-medium">{{ formatPowerHours(detail.power_on_hours) }}</p>
+          <p class="mono mt-2 text-sm font-medium text-[var(--text-primary)]">{{ formatPowerHours(detail.power_on_hours) }}</p>
         </article>
 
         <article class="rounded-xl border border-edge bg-panel p-4">
           <p class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">Last Seen</p>
-          <p class="mono mt-2 text-sm text-[var(--text-secondary)]">{{ detail.last_seen ? new Date(detail.last_seen).toLocaleString() : 'n/a' }}</p>
+          <p class="mono mt-2 text-sm text-[var(--text-primary)]">{{ formatDate(detail.last_seen) }}</p>
         </article>
       </div>
 

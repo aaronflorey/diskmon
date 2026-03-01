@@ -16,6 +16,8 @@ type SmartAttribute struct {
 	Worst       int
 	Threshold   int
 	Raw         string
+	RawValue    uint64
+	WhenFailed  string // empty means not failed; "past" or "now" means failure
 }
 
 type SmartSample struct {
@@ -25,6 +27,9 @@ type SmartSample struct {
 	ReallocatedSectors   *int64
 	PendingSectors       *int64
 	UncorrectableSectors *int64
+	UDMACRCErrors        *int64
+	ReportedUncorrect    *int64
+	CommandTimeout       *int64
 	WearLevel            *int64
 	FailingNow           bool
 	CriticalWarning      bool

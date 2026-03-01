@@ -10,10 +10,12 @@ const chartData = computed(() => {
   const temps = pts.map((p) => p.temperature)
   const min = Math.min(...temps)
   const max = Math.max(...temps)
-  const span = Math.max(1, max - min)
-  const padded = span * 0.1
-  const yMin = min - padded
-  const yMax = max + padded
+  const span = max - min
+  const isFlat = span <= 1
+
+  // For flat data, show a reasonable range around the value
+  const yMin = isFlat ? min - 5 : min - span * 0.15
+  const yMax = isFlat ? max + 5 : max + span * 0.15
   const ySpan = yMax - yMin
 
   const coords = pts.map((p, i) => ({
@@ -22,21 +24,22 @@ const chartData = computed(() => {
   }))
 
   const path = coords.map((c) => `${c.x},${c.y}`).join(' ')
-
-  // Area fill path
   const area = `0,100 ${path} 100,100`
 
-  // Y-axis labels
+  // Y-axis labels: generate 3-5 evenly spaced labels
   const yLabels = []
-  const step = span <= 3 ? 1 : Math.ceil(span / 4)
-  for (let v = Math.floor(min); v <= Math.ceil(max); v += step) {
-    yLabels.push({
-      value: v,
-      y: 100 - ((v - yMin) / ySpan) * 100
-    })
+  const labelMin = Math.floor(yMin)
+  const labelMax = Math.ceil(yMax)
+  const labelSpan = labelMax - labelMin
+  const step = labelSpan <= 4 ? 1 : labelSpan <= 10 ? 2 : Math.ceil(labelSpan / 5)
+  for (let v = labelMin; v <= labelMax; v += step) {
+    const y = 100 - ((v - yMin) / ySpan) * 100
+    if (y >= -5 && y <= 105) {
+      yLabels.push({ value: v, y })
+    }
   }
 
-  return { path, area, yLabels, min, max, latest: temps[temps.length - 1] }
+  return { path, area, yLabels, min, max, isFlat, latest: temps[temps.length - 1] }
 })
 </script>
 
@@ -45,32 +48,32 @@ const chartData = computed(() => {
     <div class="flex items-center justify-between mb-4">
       <p class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">Temperature History</p>
       <p v-if="chartData" class="mono text-xs text-[var(--text-secondary)]">
-        {{ chartData.min }}° — {{ chartData.max }}°
+        <template v-if="chartData.isFlat">steady at {{ chartData.min }}°C</template>
+        <template v-else>{{ chartData.min }}°C — {{ chartData.max }}°C</template>
       </p>
     </div>
 
-    <div class="relative">
-      <svg v-if="chartData" viewBox="-8 -4 116 108" class="h-44 w-full overflow-visible" preserveAspectRatio="none">
+    <div v-if="chartData" class="relative pl-8">
+      <!-- Y-axis labels rendered as HTML for crisp text -->
+      <div class="absolute left-0 top-0 bottom-0 w-7">
+        <div
+          v-for="label in chartData.yLabels"
+          :key="label.value"
+          class="mono absolute right-0 text-2xs text-[var(--text-tertiary)] leading-none"
+          :style="{ top: label.y + '%', transform: 'translateY(-50%)' }"
+        >{{ label.value }}°</div>
+      </div>
+
+      <svg viewBox="0 0 100 100" class="h-44 w-full" preserveAspectRatio="none">
         <!-- Horizontal grid lines -->
         <line
-          v-for="label in chartData.yLabels" :key="label.value"
+          v-for="label in chartData.yLabels" :key="'g' + label.value"
           x1="0" x2="100" :y1="label.y" :y2="label.y"
-          stroke="var(--edge-subtle)" stroke-width="0.3"
+          stroke="var(--edge-subtle)" stroke-width="0.5"
         />
-
-        <!-- Y-axis labels -->
-        <text
-          v-for="label in chartData.yLabels" :key="'t' + label.value"
-          x="-4" :y="label.y + 1.5"
-          text-anchor="end" fill="var(--text-tertiary)" font-size="3.5"
-          font-family="'IBM Plex Mono', monospace"
-        >{{ label.value }}°</text>
 
         <!-- Area fill -->
-        <polygon
-          :points="chartData.area"
-          fill="url(#areaGrad)"
-        />
+        <polygon :points="chartData.area" fill="url(#areaGrad)" />
 
         <!-- Line -->
         <polyline
@@ -85,15 +88,15 @@ const chartData = computed(() => {
 
         <defs>
           <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#c8ff3e" stop-opacity="0.12" />
+            <stop offset="0%" stop-color="#c8ff3e" stop-opacity="0.08" />
             <stop offset="100%" stop-color="#c8ff3e" stop-opacity="0" />
           </linearGradient>
         </defs>
       </svg>
+    </div>
 
-      <div v-else class="flex h-44 items-center justify-center">
-        <p class="mono text-xs text-[var(--text-tertiary)]">No temperature data available</p>
-      </div>
+    <div v-else class="flex h-44 items-center justify-center">
+      <p class="mono text-xs text-[var(--text-tertiary)]">No temperature data available</p>
     </div>
   </div>
 </template>

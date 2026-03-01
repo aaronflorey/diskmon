@@ -193,10 +193,18 @@ func (d *DuckDB) DriveAttributes(ctx context.Context, id int64) ([]AttributePoin
 }
 
 func classifyAttribute(a AttributePoint) string {
-	if a.Threshold > 0 && a.Value <= a.Threshold {
+	if a.Threshold <= 0 {
+		return "GREEN"
+	}
+	if a.Value <= a.Threshold {
 		return "RED"
 	}
-	if a.Threshold > 0 && a.Value <= a.Threshold+5 {
+	// Only warn if value is within 10% of threshold (but at least 1 point)
+	margin := a.Threshold / 10
+	if margin < 1 {
+		margin = 1
+	}
+	if a.Value <= a.Threshold+margin {
 		return "YELLOW"
 	}
 	return "GREEN"
