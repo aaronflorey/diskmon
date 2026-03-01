@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #080c0e;
+  --panel: #0f1519;
+  --panel-elevated: #141c22;
+  --edge: #1e2d36;
+  --edge-subtle: #162028;
+  --accent: #c8ff3e;
+  --danger: #ff4757;
+  --danger-dim: #ff475720;
+  --warn: #ffa63e;
+  --warn-dim: #ffa63e18;
+  --ok: #3effa8;
+  --ok-dim: #3effa810;
+  --text-primary: #e8f0f4;
+  --text-secondary: #7a919e;
+  --text-tertiary: #4a5f6d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 5% 0%, rgba(200,255,62,0.06), transparent),
+    radial-gradient(ellipse 50% 50% at 95% 10%, rgba(62,255,168,0.03), transparent),
+    radial-gradient(ellipse 40% 60% at 50% 100%, rgba(255,71,87,0.02), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* Scanline texture on panels */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Stagger animation for cards */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rise { animation: rise 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Pulse for critical drives */
+@keyframes pulse-danger {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,71,87,0.15); }
+  50% { box-shadow: 0 0 24px 4px rgba(255,71,87,0.08); }
+}
+.pulse-danger { animation: pulse-danger 3s ease-in-out infinite; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Glow effect for healthy drives */
+.glow-ok {
+  box-shadow: 0 0 0 1px rgba(62,255,168,0.1), 0 8px 32px rgba(0,0,0,0.4);
+}
+.glow-danger {
+  box-shadow: 0 0 0 1px rgba(255,71,87,0.2), 0 8px 32px rgba(0,0,0,0.4);
+}
+.glow-warn {
+  box-shadow: 0 0 0 1px rgba(255,166,62,0.15), 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
