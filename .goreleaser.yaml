@@ -1,0 +1,128 @@
+version: 2
+
+project_name: diskmon
+
+before:
+  hooks:
+    - bun install --cwd webui --frozen-lockfile
+    - bun run --cwd webui build
+
+builds:
+  - id: diskmon-linux-amd64
+    main: ./cmd/diskmon
+    binary: diskmon
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+      - CXX=g++
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w -X diskmon/internal/cli.version={{.Version}}
+
+  - id: diskmon-linux-arm64
+    main: ./cmd/diskmon
+    binary: diskmon
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w -X diskmon/internal/cli.version={{.Version}}
+
+  - id: diskmon-portable
+    main: ./cmd/diskmon
+    binary: diskmon
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X diskmon/internal/cli.version={{.Version}}
+
+archives:
+  - id: default
+    ids:
+      - diskmon-linux-amd64
+      - diskmon-linux-arm64
+      - diskmon-portable
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ .Version }}-next"
+
+changelog:
+  use: github
+
+nfpms:
+  - id: linux-packages
+    package_name: diskmon
+    ids:
+      - diskmon-linux-amd64
+      - diskmon-linux-arm64
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    maintainer: diskmon maintainers
+    description: Disk health monitoring daemon and CLI
+    license: MIT
+    vendor: diskmon
+    homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY }}
+    file_name_template: "{{ .ConventionalFileName }}"
+
+dockers:
+  - id: diskmon-amd64
+    ids:
+      - diskmon-linux-amd64
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.release
+    image_templates:
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:{{ .Tag }}-amd64
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:latest-amd64
+    use: buildx
+
+  - id: diskmon-arm64
+    ids:
+      - diskmon-linux-arm64
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.release
+    image_templates:
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:{{ .Tag }}-arm64
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:latest-arm64
+    use: buildx
+
+docker_manifests:
+  - name_template: ghcr.io/{{ .Env.IMAGE_NAME }}:{{ .Tag }}
+    image_templates:
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:{{ .Tag }}-amd64
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:{{ .Tag }}-arm64
+
+  - name_template: ghcr.io/{{ .Env.IMAGE_NAME }}:latest
+    image_templates:
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:latest-amd64
+      - ghcr.io/{{ .Env.IMAGE_NAME }}:latest-arm64

@@ -1,0 +1,88 @@
+# diskmon
+
+`diskmon` is a disk health monitoring daemon and CLI for SMART data collection with an embedded web UI.
+
+![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/aaronflorey/diskmon)
+
+## Install
+
+### From release binaries
+
+Download a binary archive from GitHub Releases, extract it, and move `diskmon` into your `PATH`.
+For full DuckDB-backed storage support, use Linux release artifacts (CGO-enabled).
+
+Examples:
+
+```bash
+# Linux amd64
+curl -L -o diskmon.tar.gz \
+  https://github.com/aaronflorey/diskmon/releases/download/vX.Y.Z/diskmon_X.Y.Z_linux_amd64.tar.gz
+
+tar -xzf diskmon.tar.gz
+sudo install diskmon /usr/local/bin/diskmon
+```
+
+```bash
+# macOS arm64
+curl -L -o diskmon.tar.gz \
+  https://github.com/aaronflorey/diskmon/releases/download/vX.Y.Z/diskmon_X.Y.Z_darwin_arm64.tar.gz
+
+tar -xzf diskmon.tar.gz
+sudo install diskmon /usr/local/bin/diskmon
+```
+
+### From Linux packages (.deb/.rpm/.apk)
+
+Releases also publish native packages.
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i diskmon_X.Y.Z_linux_amd64.deb
+```
+
+```bash
+# RHEL/Fedora
+sudo rpm -i diskmon_X.Y.Z_linux_amd64.rpm
+```
+
+```bash
+# Alpine
+sudo apk add --allow-untrusted diskmon_X.Y.Z_linux_amd64.apk
+```
+
+NOTE: You can use reprox for automatic updates via APT/RHEL https://reprox.dev/
+
+### Docker (GHCR)
+
+```bash
+docker run --rm -p 8976:8976 ghcr.io/<owner>/<repo>:latest daemon
+```
+
+## Quick start
+
+```bash
+diskmon daemon
+```
+
+Useful environment variables:
+
+- `DISKMON_DATABASE` (default: `diskmon.duckdb`)
+- `DISKMON_WEB_LISTEN` (default: `0.0.0.0:8976`)
+- `DISKMON_INTERVAL` (default: `60s`)
+
+## Local development
+
+### Backend
+
+```bash
+make test
+make build-mac
+```
+
+### Frontend
+
+```bash
+cd webui
+bun install
+bun run dev
+```

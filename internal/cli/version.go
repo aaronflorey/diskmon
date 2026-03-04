@@ -6,7 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "0.1.0"
+// version is injected at build time by goreleaser; defaults to dev for local builds.
+var version = "dev"
 
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{

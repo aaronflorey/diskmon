@@ -1,0 +1,8 @@
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY diskmon /usr/local/bin/diskmon
+
+EXPOSE 8976
+
+ENTRYPOINT ["/usr/local/bin/diskmon"]
+CMD ["daemon"]

@@ -1,0 +1,48 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Checkout
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Move major/minor tags
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: |
+          TAG="${TAG_NAME#v}"
+          MAJOR="${TAG%%.*}"
+          REMAINDER="${TAG#*.}"
+          MINOR="${REMAINDER%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --tags
+          git tag -fa "v${MAJOR}" -m "v${MAJOR}"
+          git tag -fa "v${MAJOR}.${MINOR}" -m "v${MAJOR}.${MINOR}"
+          git push origin "refs/tags/v${MAJOR}" --force
+          git push origin "refs/tags/v${MAJOR}.${MINOR}" --force
