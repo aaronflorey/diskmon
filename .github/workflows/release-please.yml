@@ -13,13 +13,17 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    env:
+      # Use a PAT so release/tag events can trigger downstream workflows.
+      # GITHUB_TOKEN-created events do not trigger other workflow runs.
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Release Please
         id: release
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.RELEASE_PLEASE_TOKEN }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -27,7 +31,7 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.RELEASE_PLEASE_TOKEN }}
           fetch-depth: 0
 
       - name: Move major/minor tags
