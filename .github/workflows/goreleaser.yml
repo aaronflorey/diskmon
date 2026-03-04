@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    # Pin to 22.04 so CGO-linked Linux binaries target an older glibc baseline.
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout

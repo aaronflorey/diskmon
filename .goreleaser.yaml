@@ -76,7 +76,7 @@ changelog:
   use: github
 
 nfpms:
-  - id: linux-packages
+  - id: linux-packages-deb-rpm
     package_name: diskmon
     ids:
       - diskmon-linux-amd64
@@ -84,6 +84,29 @@ nfpms:
     formats:
       - deb
       - rpm
+    bindir: /usr/bin
+    maintainer: diskmon maintainers
+    description: Disk health monitoring daemon and CLI
+    license: MIT
+    vendor: diskmon
+    homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY }}
+    file_name_template: "{{ .ConventionalFileName }}"
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
+    contents:
+      - src: packaging/systemd/diskmon.service
+        dst: /lib/systemd/system/diskmon.service
+      - src: packaging/config/config.yaml
+        dst: /etc/diskmon/config.yaml
+        type: config|noreplace
+
+  - id: linux-packages-apk
+    package_name: diskmon
+    ids:
+      - diskmon-linux-amd64
+      - diskmon-linux-arm64
+    formats:
       - apk
     bindir: /usr/bin
     maintainer: diskmon maintainers

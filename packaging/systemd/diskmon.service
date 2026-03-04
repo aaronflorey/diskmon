@@ -1,0 +1,17 @@
+[Unit]
+Description=diskmon daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/diskmon daemon --config /etc/diskmon/config.yaml --db /var/lib/diskmon/diskmon.duckdb
+Restart=on-failure
+RestartSec=5s
+
+# SMART access typically requires elevated privileges.
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+database: /var/lib/diskmon/diskmon.duckdb
+
+collector:
+  interval: 60s
+  drives: []
+
+web:
+  listen: 0.0.0.0:8976
+
+log:
+  level: INFO

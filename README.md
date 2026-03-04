@@ -52,6 +52,20 @@ sudo apk add --allow-untrusted diskmon_X.Y.Z_linux_amd64.apk
 
 NOTE: You can use reprox for automatic updates via APT/RHEL https://reprox.dev/
 
+For `.deb` and `.rpm` packages:
+
+- systemd unit is installed as `diskmon.service`
+- config file is installed at `/etc/diskmon/config.yaml`
+- database path defaults to `/var/lib/diskmon/diskmon.duckdb`
+
+Service management examples:
+
+```bash
+sudo systemctl status diskmon
+sudo systemctl restart diskmon
+journalctl -u diskmon -f
+```
+
 ### Docker (GHCR)
 
 ```bash
