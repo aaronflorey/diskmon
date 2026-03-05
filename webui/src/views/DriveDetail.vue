@@ -7,6 +7,7 @@ import TemperatureBadge from '../components/TemperatureBadge.vue'
 import AttributeTable from '../components/AttributeTable.vue'
 import HistoryChart from '../components/HistoryChart.vue'
 import { formatPowerHours, driveType, healthBorderAccent } from '../stores/format'
+import { useEventStream } from '../composables/useEventStream'
 
 const route = useRoute()
 const loading = ref(true)
@@ -14,6 +15,15 @@ const error = ref('')
 const detail = ref(null)
 const attributes = ref([])
 const history = ref([])
+const tests = ref([])
+const testsPage = ref(1)
+const testsPerPage = 10
+const testsTotal = ref(0)
+
+const totalTestPages = computed(() => {
+  const pages = Math.ceil(testsTotal.value / testsPerPage)
+  return pages > 0 ? pages : 1
+})
 
 const type = computed(() => detail.value ? driveType(detail.value.device) : '')
 
@@ -24,18 +34,56 @@ function formatDate(d) {
     + ', ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-onMounted(async () => {
+function testStatusClass(status) {
+  const s = (status || '').toUpperCase()
+  if (s === 'PASSED' || s === 'SUCCESS') return 'text-ok/80'
+  if (s === 'STARTED' || s === 'IN_PROGRESS' || s === 'UNKNOWN') return 'text-warm/80'
+  return 'text-danger/80'
+}
+
+async function loadTestsPage(page) {
+  const id = route.params.id
+  const resp = await api.tests(id, page, testsPerPage)
+  tests.value = resp.items || []
+  testsPage.value = resp.page || page
+  testsTotal.value = resp.total || 0
+}
+
+async function changeTestsPage(page) {
+  try {
+    await loadTestsPage(page)
+    error.value = ''
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+async function loadDriveData(showLoading = false) {
+  if (showLoading) loading.value = true
   try {
     const id = route.params.id
     const [d, a, h] = await Promise.all([api.drive(id), api.attributes(id), api.history(id)])
     detail.value = d
     attributes.value = a
     history.value = h
+    await loadTestsPage(testsPage.value || 1)
+    error.value = ''
   } catch (err) {
     error.value = err.message
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
   }
+}
+
+const { connect } = useEventStream(
+  ['sample.inserted', 'test.updated'],
+  () => loadDriveData(false),
+  { debounceMs: 400, filterDevice: () => detail.value?.device }
+)
+
+onMounted(async () => {
+  await loadDriveData(true)
+  connect()
 })
 </script>
 
@@ -115,6 +163,53 @@ onMounted(async () => {
       </div>
 
       <HistoryChart :points="history" class="rise" style="animation-delay: 160ms;" />
+      <div class="rise rounded-xl border border-edge bg-panel p-4" style="animation-delay: 190ms;">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <p class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">SMART Test Runs</p>
+          <span class="mono text-2xs text-[var(--text-tertiary)]">{{ testsTotal }}</span>
+        </div>
+        <div v-if="tests.length" class="space-y-2">
+          <div
+            v-for="run in tests"
+            :key="run.id"
+            class="grid grid-cols-[72px_110px_1fr] items-start gap-3 rounded-lg border border-edge/70 px-3 py-2"
+          >
+            <span class="mono text-2xs uppercase tracking-wider text-[var(--text-secondary)]">{{ run.test_type }}</span>
+            <span
+              class="mono text-2xs uppercase tracking-wider"
+              :class="testStatusClass(run.status)"
+            >{{ run.status }}</span>
+            <div>
+              <p class="mono text-xs text-[var(--text-secondary)]">{{ formatDate(run.started_at) }}</p>
+              <p class="mt-1 break-words text-xs text-[var(--text-tertiary)]">{{ run.message || 'n/a' }}</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="mono text-2xs uppercase tracking-wider text-[var(--text-tertiary)]">
+              Page {{ testsPage }} of {{ totalTestPages }}
+            </span>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="mono rounded border border-edge px-2 py-1 text-2xs uppercase tracking-wider text-[var(--text-secondary)] disabled:opacity-40"
+                :disabled="testsPage <= 1"
+                @click="changeTestsPage(Math.max(1, testsPage - 1))"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                class="mono rounded border border-edge px-2 py-1 text-2xs uppercase tracking-wider text-[var(--text-secondary)] disabled:opacity-40"
+                :disabled="testsPage >= totalTestPages"
+                @click="changeTestsPage(Math.min(totalTestPages, testsPage + 1))"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="mono text-xs text-[var(--text-tertiary)]">No SMART test runs recorded.</p>
+      </div>
       <AttributeTable :rows="attributes" class="rise" style="animation-delay: 200ms;" />
     </div>
   </section>

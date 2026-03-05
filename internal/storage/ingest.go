@@ -53,13 +53,60 @@ func (d *DuckDB) InsertSample(ctx context.Context, info smart.DriveInfo, sample 
 	return sampleID, nil
 }
 
+func (d *DuckDB) InsertSmartTestRun(ctx context.Context, info smart.DriveInfo, run SmartTestRun) (int64, error) {
+	conn, err := d.db.Conn(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	driveID, err := upsertDrive(ctx, tx, info, run.FinishedAt)
+	if err != nil {
+		return 0, err
+	}
+
+	var runID int64
+	if err := tx.QueryRowContext(ctx, `SELECT nextval('seq_smart_test_runs')`).Scan(&runID); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO smart_test_runs (
+			id, drive_id, test_type, scheduled_at, started_at, finished_at, status, message
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, runID, driveID, run.TestType, run.ScheduledAt, run.StartedAt, run.FinishedAt, run.Status, run.Message); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	return runID, nil
+}
+
 func upsertDrive(ctx context.Context, tx *sql.Tx, info smart.DriveInfo, seenAt time.Time) (int64, error) {
 	var driveID int64
 	err := tx.QueryRowContext(ctx, `SELECT id FROM drives WHERE device = ?`, info.Device).Scan(&driveID)
 	if err == nil {
 		_, err = tx.ExecContext(ctx,
-			`UPDATE drives SET model = ?, serial = ?, wwn = ?, last_seen_at = ? WHERE id = ?`,
-			info.Model, info.Serial, info.WWN, seenAt, driveID)
+			`UPDATE drives SET
+				model = CASE WHEN ? <> '' THEN ? ELSE model END,
+				serial = CASE WHEN ? <> '' THEN ? ELSE serial END,
+				wwn = CASE WHEN ? <> '' THEN ? ELSE wwn END,
+				last_seen_at = ?
+			WHERE id = ?`,
+			info.Model, info.Model,
+			info.Serial, info.Serial,
+			info.WWN, info.WWN,
+			seenAt, driveID,
+		)
 		return driveID, err
 	}
 	if err != sql.ErrNoRows {

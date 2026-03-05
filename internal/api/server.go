@@ -15,8 +15,8 @@ type Server struct {
 	log  *slog.Logger
 }
 
-func NewServer(addr string, logger *slog.Logger, db *storage.DuckDB) *Server {
-	handler := NewRouter(logger, db, web.Assets())
+func NewServer(addr string, logger *slog.Logger, db *storage.DuckDB, events *EventBroker) *Server {
+	handler := NewRouter(logger, db, events, web.Assets())
 	return &Server{
 		log: logger,
 		http: &http.Server{

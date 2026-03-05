@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { api } from '../api/client'
 import DriveCard from '../components/DriveCard.vue'
 import { driveType } from '../stores/format'
+import { useEventStream } from '../composables/useEventStream'
 
 const loading = ref(true)
 const error = ref('')
@@ -38,14 +39,27 @@ const labels = {
   unknown: 'Other Devices'
 }
 
-onMounted(async () => {
+async function reload(showLoading = false) {
+  if (showLoading) loading.value = true
   try {
     drives.value = await api.drives()
+    error.value = ''
   } catch (err) {
     error.value = err.message
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
   }
+}
+
+const { connect } = useEventStream(
+  ['sample.inserted', 'test.updated'],
+  () => reload(false),
+  { debounceMs: 300 }
+)
+
+onMounted(async () => {
+  await reload(true)
+  connect()
 })
 </script>
 

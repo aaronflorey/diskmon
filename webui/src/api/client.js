@@ -10,5 +10,6 @@ export const api = {
   drives: () => req('/drives'),
   drive: (id) => req(`/drives/${id}`),
   history: (id) => req(`/drives/${id}/history`),
-  attributes: (id) => req(`/drives/${id}/attributes`)
+  attributes: (id) => req(`/drives/${id}/attributes`),
+  tests: (id, page = 1, pageSize = 10) => req(`/drives/${id}/tests?page=${page}&page_size=${pageSize}`)
 }

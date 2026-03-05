@@ -83,6 +83,19 @@ Useful environment variables:
 - `DISKMON_DATABASE` (default: `diskmon.duckdb`)
 - `DISKMON_WEB_LISTEN` (default: `0.0.0.0:8976`)
 - `DISKMON_INTERVAL` (default: `60s`)
+- `DISKMON_TEST_SHORT` (optional cron expression, e.g. `0 2 * * *`)
+- `DISKMON_TEST_LONG` (optional cron expression, e.g. `0 3 * * 0`)
+
+Optional YAML configuration:
+
+```yaml
+collector:
+  tests:
+    short: "0 2 * * *"
+    long: "0 3 * * 0"
+```
+
+Cron values use standard 5-field format (`minute hour day-of-month month day-of-week`).
 
 ## Local development
 

@@ -5,59 +5,7 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"time"
 )
-
-type DriveSummary struct {
-	ID          int64      `json:"id"`
-	Device      string     `json:"device"`
-	Model       string     `json:"model"`
-	Serial      string     `json:"serial"`
-	Health      string     `json:"health"`
-	Temperature *int       `json:"temperature"`
-	PowerOnHrs  *int64     `json:"power_on_hours"`
-	LastSeen    *time.Time `json:"last_seen"`
-}
-
-type DriveDetail struct {
-	ID            int64      `json:"id"`
-	Device        string     `json:"device"`
-	Model         string     `json:"model"`
-	Serial        string     `json:"serial"`
-	WWN           string     `json:"wwn"`
-	Health        string     `json:"health"`
-	HealthScore   int        `json:"health_score"`
-	HealthReasons string     `json:"health_reasons"`
-	Temperature   *int       `json:"temperature"`
-	PowerOnHours  *int64     `json:"power_on_hours"`
-	Reallocated   *int64     `json:"reallocated_sectors"`
-	Pending       *int64     `json:"pending_sectors"`
-	Uncorrectable *int64     `json:"uncorrectable_sectors"`
-	WearLevel     *int64     `json:"wear_level"`
-	CollectedAt   *time.Time `json:"collected_at"`
-	FirstSeen     *time.Time `json:"first_seen"`
-	LastSeen      *time.Time `json:"last_seen"`
-}
-
-type HistoryPoint struct {
-	CollectedAt          time.Time `json:"collected_at"`
-	Temperature          *int      `json:"temperature"`
-	PowerOnHours         *int64    `json:"power_on_hours"`
-	ReallocatedSectors   *int64    `json:"reallocated_sectors"`
-	PendingSectors       *int64    `json:"pending_sectors"`
-	UncorrectableSectors *int64    `json:"uncorrectable_sectors"`
-	WearLevel            *int64    `json:"wear_level"`
-}
-
-type AttributePoint struct {
-	AttributeID int    `json:"attribute_id"`
-	Name        string `json:"name"`
-	Value       int    `json:"value"`
-	Worst       int    `json:"worst"`
-	Threshold   int    `json:"threshold"`
-	Raw         string `json:"raw"`
-	Status      string `json:"status"`
-}
 
 func (d *DuckDB) ListDrives(ctx context.Context) ([]DriveSummary, error) {
 	rows, err := d.db.QueryContext(ctx, `
@@ -190,6 +138,47 @@ func (d *DuckDB) DriveAttributes(ctx context.Context, id int64) ([]AttributePoin
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (d *DuckDB) DriveTestRuns(ctx context.Context, id int64, page int, pageSize int) (*SmartTestRunPage, error) {
+	offset := (page - 1) * pageSize
+
+	var total int
+	if err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM smart_test_runs WHERE drive_id = ?`, id).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	rows, err := d.db.QueryContext(ctx, `
+		SELECT id, test_type, scheduled_at, started_at, finished_at, status, COALESCE(message, '')
+		FROM smart_test_runs
+		WHERE drive_id = ?
+		ORDER BY started_at DESC
+		LIMIT ?
+		OFFSET ?
+	`, id, pageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []SmartTestRun{}
+	for rows.Next() {
+		var item SmartTestRun
+		if err := rows.Scan(&item.ID, &item.TestType, &item.ScheduledAt, &item.StartedAt, &item.FinishedAt, &item.Status, &item.Message); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &SmartTestRunPage{
+		Items:    out,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
 }
 
 func classifyAttribute(a AttributePoint) string {

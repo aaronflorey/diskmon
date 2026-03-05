@@ -3,6 +3,9 @@ database: /var/lib/diskmon/diskmon.duckdb
 collector:
   interval: 60s
   drives: []
+  tests:
+    short: ""
+    long: ""
 
 web:
   listen: 0.0.0.0:8976

@@ -46,3 +46,17 @@ CREATE TABLE IF NOT EXISTS drive_health (
     FOREIGN KEY (drive_id) REFERENCES drives(id),
     FOREIGN KEY (sample_id) REFERENCES smart_samples(id)
 );
+
+CREATE TABLE IF NOT EXISTS smart_test_runs (
+    id BIGINT PRIMARY KEY,
+    drive_id BIGINT NOT NULL,
+    test_type TEXT NOT NULL,
+    scheduled_at TIMESTAMP NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP NOT NULL,
+    status TEXT NOT NULL,
+    message TEXT,
+    FOREIGN KEY (drive_id) REFERENCES drives(id)
+);
+
+CREATE SEQUENCE IF NOT EXISTS seq_smart_test_runs START 1;
