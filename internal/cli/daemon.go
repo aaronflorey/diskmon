@@ -98,7 +98,15 @@ func newDaemonCmd(cfg *config.Config, logger *slog.Logger) *cobra.Command {
 				case <-ctx.Done():
 					shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					defer cancel()
-					return apiServer.Shutdown(shutdownCtx)
+					if err := apiServer.Shutdown(shutdownCtx); err != nil {
+						if errors.Is(err, context.DeadlineExceeded) {
+							logger.Warn("graceful shutdown timed out; forcing close")
+							_ = apiServer.Close()
+							return nil
+						}
+						return err
+					}
+					return nil
 				case err := <-errCh:
 					return err
 				case <-ticker.C:
@@ -155,8 +163,8 @@ func configureSmartTestCron(
 						inFlightMu.Unlock()
 					}()
 
-					currentStatus, _ := collector.ReadSelfTestResult(ctx, device, testType)
-					if currentStatus == "IN_PROGRESS" {
+					baselineStatus, baselineMsg := collector.ReadSelfTestResult(ctx, device, testType)
+					if baselineStatus == "IN_PROGRESS" {
 						logger.Warn("skipping scheduled SMART test; device reports test already in progress", "device", device, "type", testType)
 						return
 					}
@@ -205,9 +213,15 @@ func configureSmartTestCron(
 
 					finalStatus := "UNKNOWN"
 					finalMsg := "self-test result unavailable"
-					for i := 0; i < 6; i++ {
+					for i := 0; i < 12; i++ {
 						finalStatus, finalMsg = collector.ReadSelfTestResult(ctx, device, testType)
-						if finalStatus != "IN_PROGRESS" {
+						if finalStatus == "IN_PROGRESS" {
+							// Test is still running, keep polling.
+						} else if finalStatus == baselineStatus && finalMsg == baselineMsg {
+							// Result unchanged from before we started the test;
+							// likely a stale entry from a previous run.
+							logger.Debug("self-test result unchanged from baseline, still waiting", "device", device, "type", testType, "status", finalStatus)
+						} else {
 							break
 						}
 						select {

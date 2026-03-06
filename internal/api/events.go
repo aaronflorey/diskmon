@@ -15,8 +15,9 @@ type Event struct {
 }
 
 type EventBroker struct {
-	mu   sync.RWMutex
-	subs map[chan Event]struct{}
+	mu     sync.RWMutex
+	subs   map[chan Event]struct{}
+	closed bool
 }
 
 func NewEventBroker() *EventBroker {
@@ -28,6 +29,11 @@ func NewEventBroker() *EventBroker {
 func (b *EventBroker) Subscribe() (chan Event, func()) {
 	ch := make(chan Event, 16)
 	b.mu.Lock()
+	if b.closed {
+		close(ch)
+		b.mu.Unlock()
+		return ch, func() {}
+	}
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
 	return ch, func() {
@@ -56,6 +62,22 @@ func (b *EventBroker) Publish(eventType string, device string) {
 		case ch <- ev:
 		default:
 		}
+	}
+}
+
+func (b *EventBroker) Close() {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return
+	}
+	b.closed = true
+	for ch := range b.subs {
+		close(ch)
+		delete(b.subs, ch)
 	}
 }
 

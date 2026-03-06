@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"diskmon/internal/storage"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 )
 
 type Handlers struct {
@@ -23,10 +23,10 @@ func NewHandlers(db *storage.DuckDB, events *EventBroker) *Handlers {
 func (h *Handlers) ListDrives(w http.ResponseWriter, r *http.Request) {
 	items, err := h.db.ListDrives(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		renderError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	render.JSON(w, r, items)
 }
 
 func (h *Handlers) GetDrive(w http.ResponseWriter, r *http.Request) {
@@ -36,14 +36,14 @@ func (h *Handlers) GetDrive(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.db.GetDrive(r.Context(), id)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		renderError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if item == nil {
-		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "drive not found"})
+		renderError(w, r, http.StatusNotFound, "drive not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, item)
+	render.JSON(w, r, item)
 }
 
 func (h *Handlers) DriveHistory(w http.ResponseWriter, r *http.Request) {
@@ -53,10 +53,10 @@ func (h *Handlers) DriveHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	points, err := h.db.DriveHistory(r.Context(), id, 200)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		renderError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, points)
+	render.JSON(w, r, points)
 }
 
 func (h *Handlers) DriveAttributes(w http.ResponseWriter, r *http.Request) {
@@ -66,10 +66,10 @@ func (h *Handlers) DriveAttributes(w http.ResponseWriter, r *http.Request) {
 	}
 	attrs, err := h.db.DriveAttributes(r.Context(), id)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		renderError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, attrs)
+	render.JSON(w, r, attrs)
 }
 
 func (h *Handlers) DriveTests(w http.ResponseWriter, r *http.Request) {
@@ -84,21 +84,21 @@ func (h *Handlers) DriveTests(w http.ResponseWriter, r *http.Request) {
 	}
 	runs, err := h.db.DriveTestRuns(r.Context(), id, page, pageSize)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		renderError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, runs)
+	render.JSON(w, r, runs)
 }
 
 func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 	if h.events == nil {
-		writeJSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: "event stream unavailable"})
+		renderError(w, r, http.StatusServiceUnavailable, "event stream unavailable")
 		return
 	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "streaming unsupported"})
+		renderError(w, r, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
 
@@ -119,7 +119,10 @@ func (h *Handlers) Events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case ev := <-ch:
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
 			if err := writeSSEEvent(w, flusher, ev); err != nil {
 				return
 			}
@@ -136,7 +139,7 @@ func parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	raw := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid id"})
+		renderError(w, r, http.StatusBadRequest, "invalid id")
 		return 0, false
 	}
 	return id, true
@@ -153,8 +156,7 @@ func parsePositiveInt(raw string, fallback int) int {
 	return v
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+func renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
+	render.Status(r, status)
+	render.JSON(w, r, ErrorResponse{Error: message})
 }

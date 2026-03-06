@@ -2,13 +2,15 @@ package smart
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
 type Runner interface {
@@ -18,6 +20,13 @@ type Runner interface {
 }
 
 type ExecRunner struct{}
+
+var (
+	selfTestWaitRe     = regexp.MustCompile(`(?i)\bplease wait\s+(\d+)\b`)
+	selfTestStartedRe  = regexp.MustCompile(`(?im)^[^\n]*testing has begun[^\n]*$`)
+	selfTestWaitLineRe = regexp.MustCompile(`(?im)^[^\n]*please wait[^\n]*$`)
+	selfTestDoneLineRe = regexp.MustCompile(`(?im)^[^\n]*test will complete after[^\n]*$`)
+)
 
 func NewExecRunner() *ExecRunner {
 	return &ExecRunner{}
@@ -139,22 +148,15 @@ func (c *Collector) RunSelfTest(ctx context.Context, device string, testType str
 }
 
 func (c *Collector) ParseSelfTestWait(output string) time.Duration {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if !strings.Contains(strings.ToLower(line), "please wait") {
-			continue
-		}
-		fields := strings.Fields(line)
-		for i, token := range fields {
-			if strings.EqualFold(token, "wait") && i+1 < len(fields) {
-				if n, err := strconv.Atoi(strings.TrimSpace(fields[i+1])); err == nil && n >= 0 {
-					return time.Duration(n) * time.Minute
-				}
-			}
-		}
+	match := selfTestWaitRe.FindStringSubmatch(output)
+	if len(match) != 2 {
+		return 0
 	}
-	return 0
+	n, err := strconv.Atoi(match[1])
+	if err != nil || n < 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Minute
 }
 
 func (c *Collector) ReadSelfTestResult(ctx context.Context, device string, testType string) (string, string) {
@@ -170,48 +172,54 @@ func (c *Collector) ReadSelfTestResult(ctx context.Context, device string, testT
 }
 
 func parseSelfTestResult(payload []byte, testType string) (string, string, bool) {
-	var data map[string]any
-	if err := json.Unmarshal(payload, &data); err != nil {
+	table := gjson.GetBytes(payload, "ata_smart_self_test_log.standard.table")
+	if !table.Exists() || !table.IsArray() {
 		return "", "", false
 	}
-	root, ok := data["ata_smart_self_test_log"].(map[string]any)
-	if !ok {
-		return "", "", false
-	}
-	standard, ok := root["standard"].(map[string]any)
-	if !ok {
-		return "", "", false
-	}
-	table, ok := standard["table"].([]any)
-	if !ok || len(table) == 0 {
-		return "", "", false
-	}
-	for _, row := range table {
-		m, ok := row.(map[string]any)
-		if !ok {
-			continue
-		}
-		typeStr := strings.ToLower(strAt(m, "type", "string"))
+	foundMatch := false
+	fallbackState := ""
+	fallbackMessage := ""
+	for _, row := range table.Array() {
+		typeStr := strings.ToLower(strings.TrimSpace(row.Get("type.string").String()))
 		if !testTypeMatches(typeStr, testType) {
 			continue
 		}
-		statusStr := strAt(m, "status", "string")
+		foundMatch = true
+		statusStr := strings.TrimSpace(row.Get("status.string").String())
 		if statusStr == "" {
 			statusStr = "unknown"
 		}
 		lower := strings.ToLower(statusStr)
 		switch {
-		case strings.Contains(lower, "without error"):
-			return "PASSED", statusStr, true
 		case strings.Contains(lower, "in progress"):
 			return "IN_PROGRESS", statusStr, true
+		case strings.Contains(lower, "without error"):
+			if fallbackState == "" {
+				fallbackState = "PASSED"
+				fallbackMessage = statusStr
+			}
 		case strings.Contains(lower, "aborted"):
-			return "FAILED", statusStr, true
+			if fallbackState == "" {
+				fallbackState = "FAILED"
+				fallbackMessage = statusStr
+			}
 		case strings.Contains(lower, "completed"):
-			return "FAILED", statusStr, true
+			if fallbackState == "" {
+				fallbackState = "FAILED"
+				fallbackMessage = statusStr
+			}
 		default:
-			return "UNKNOWN", statusStr, true
+			if fallbackState == "" {
+				fallbackState = "UNKNOWN"
+				fallbackMessage = statusStr
+			}
 		}
+	}
+	if fallbackState != "" {
+		return fallbackState, fallbackMessage, true
+	}
+	if foundMatch {
+		return "UNKNOWN", "unknown", true
 	}
 	return "", "", false
 }
@@ -230,26 +238,9 @@ func testTypeMatches(typeStr string, wanted string) bool {
 }
 
 func summarizeSelfTestStartOutput(raw string, testType string) string {
-	lines := strings.Split(raw, "\n")
-	waitLine := ""
-	completeLine := ""
-	startedLine := ""
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		lower := strings.ToLower(line)
-		switch {
-		case strings.Contains(lower, "testing has begun"):
-			startedLine = line
-		case strings.Contains(lower, "please wait"):
-			waitLine = line
-		case strings.Contains(lower, "test will complete after"):
-			completeLine = line
-		}
-	}
+	startedLine := strings.TrimSpace(selfTestStartedRe.FindString(raw))
+	waitLine := strings.TrimSpace(selfTestWaitLineRe.FindString(raw))
+	completeLine := strings.TrimSpace(selfTestDoneLineRe.FindString(raw))
 
 	parts := []string{fmt.Sprintf("SMART %s self-test started.", testType)}
 	if startedLine != "" {

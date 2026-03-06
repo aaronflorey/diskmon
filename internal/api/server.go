@@ -11,14 +11,16 @@ import (
 )
 
 type Server struct {
-	http *http.Server
-	log  *slog.Logger
+	http   *http.Server
+	log    *slog.Logger
+	events *EventBroker
 }
 
 func NewServer(addr string, logger *slog.Logger, db *storage.DuckDB, events *EventBroker) *Server {
 	handler := NewRouter(logger, db, events, web.Assets())
 	return &Server{
-		log: logger,
+		log:    logger,
+		events: events,
 		http: &http.Server{
 			Addr:              addr,
 			Handler:           handler,
@@ -34,5 +36,15 @@ func (s *Server) Start() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.log.Info("api server shutting down")
+	if s.events != nil {
+		s.events.Close()
+	}
 	return s.http.Shutdown(ctx)
+}
+
+func (s *Server) Close() error {
+	if s.events != nil {
+		s.events.Close()
+	}
+	return s.http.Close()
 }

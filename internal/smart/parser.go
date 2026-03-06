@@ -1,35 +1,33 @@
 package smart
 
 import (
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidwall/gjson"
 )
 
-type rawSmartData map[string]any
-
 func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, error) {
-	var data rawSmartData
-	if err := json.Unmarshal(payload, &data); err != nil {
-		return DriveInfo{}, SmartSample{}, fmt.Errorf("decode smartctl json: %w", err)
+	root := gjson.ParseBytes(payload)
+	if root.Type != gjson.JSON {
+		return DriveInfo{}, SmartSample{}, fmt.Errorf("decode smartctl json: invalid json payload")
 	}
 
-	attrs := parseAttributes(data)
+	attrs := parseAttributes(root)
 	attrMap := buildAttrMap(attrs)
 
 	info := DriveInfo{
 		Device: device,
-		Model:  firstNonEmpty(strAt(data, "model_name"), strAt(data, "model_family"), strAt(data, "model_number")),
-		Serial: strAt(data, "serial_number"),
-		WWN:    strAt(data, "wwn", "naa"),
+		Model:  firstNonEmpty(resultString(root.Get("model_name")), resultString(root.Get("model_family")), resultString(root.Get("model_number"))),
+		Serial: resultString(root.Get("serial_number")),
+		WWN:    resultString(root.Get("wwn.naa")),
 	}
 
 	// Temperature: prefer top-level temperature.current, then NVMe log
-	temp := firstInt64(data,
-		[]string{"temperature", "current"},
-		[]string{"nvme_smart_health_information_log", "temperature"},
+	temp := firstInt64(root,
+		"temperature.current",
+		"nvme_smart_health_information_log.temperature",
 	)
 	if temp != nil && *temp > 200 {
 		c := int64(float64(*temp) - 273.15)
@@ -46,30 +44,29 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 
 	// NVMe fallback for uncorrectable
 	if uncorr == nil {
-		uncorr = firstInt64(data, []string{"nvme_smart_health_information_log", "media_errors"})
+		uncorr = firstInt64(root, "nvme_smart_health_information_log.media_errors")
 	}
 
 	// Wear level (NVMe)
-	wear := firstInt64(data,
-		[]string{"nvme_smart_health_information_log", "percentage_used"},
+	wear := firstInt64(root,
+		"nvme_smart_health_information_log.percentage_used",
 	)
 
 	criticalWarning := false
-	if cw := firstInt64(data, []string{"nvme_smart_health_information_log", "critical_warning"}); cw != nil && *cw > 0 {
+	if cw := firstInt64(root, "nvme_smart_health_information_log.critical_warning"); cw != nil && *cw > 0 {
 		criticalWarning = true
 	}
 
 	failingNow := false
-	if v := nested(data, "smart_status", "passed"); v != nil {
-		if passed, ok := v.(bool); ok {
-			failingNow = !passed
-		}
+	if passed := root.Get("smart_status.passed"); passed.Exists() &&
+		(passed.Type == gjson.True || passed.Type == gjson.False) {
+		failingNow = !passed.Bool()
 	}
 
 	sample := SmartSample{
 		CollectedAt:          time.Now().UTC(),
 		Temperature:          intPtrFrom64(temp),
-		PowerOnHours:         firstInt64(data, []string{"power_on_time", "hours"}, []string{"power_on_hours"}),
+		PowerOnHours:         firstInt64(root, "power_on_time.hours", "power_on_hours"),
 		ReallocatedSectors:   realloc,
 		PendingSectors:       pending,
 		UncorrectableSectors: uncorr,
@@ -86,39 +83,29 @@ func ParseSmartJSON(device string, payload []byte) (DriveInfo, SmartSample, erro
 	return info, sample, nil
 }
 
-func parseAttributes(data rawSmartData) []SmartAttribute {
-	table, ok := nested(data, "ata_smart_attributes", "table").([]any)
-	if !ok {
+func parseAttributes(root gjson.Result) []SmartAttribute {
+	table := root.Get("ata_smart_attributes.table")
+	if !table.Exists() || !table.IsArray() {
 		return nil
 	}
-	attrs := make([]SmartAttribute, 0, len(table))
-	for _, item := range table {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		var rawValue uint64
-		if v, ok := getNumber(m, "raw", "value"); ok {
-			rawValue = uint64(v)
-		}
-
-		rawStr := fmt.Sprintf("%v", nested(m, "raw", "string"))
-		if strings.TrimSpace(rawStr) == "<nil>" || strings.TrimSpace(rawStr) == "" {
+	entries := table.Array()
+	attrs := make([]SmartAttribute, 0, len(entries))
+	for _, item := range entries {
+		rawValue := item.Get("raw.value").Uint()
+		rawStr := strings.TrimSpace(resultString(item.Get("raw.string")))
+		if rawStr == "" {
 			rawStr = fmt.Sprintf("%d", rawValue)
 		}
 
-		whenFailed := strAt(m, "when_failed")
-
 		attr := SmartAttribute{
-			AttributeID: int(numberAt(m, "id")),
-			Name:        strAt(m, "name"),
-			Value:       int(numberAt(m, "value")),
-			Worst:       int(numberAt(m, "worst")),
-			Threshold:   int(numberAt(m, "thresh")),
+			AttributeID: int(item.Get("id").Int()),
+			Name:        resultString(item.Get("name")),
+			Value:       int(item.Get("value").Int()),
+			Worst:       int(item.Get("worst").Int()),
+			Threshold:   int(item.Get("thresh").Int()),
 			Raw:         rawStr,
 			RawValue:    rawValue,
-			WhenFailed:  whenFailed,
+			WhenFailed:  resultString(item.Get("when_failed")),
 		}
 		attrs = append(attrs, attr)
 	}
@@ -144,80 +131,23 @@ func attrRawValueByID(m map[int]SmartAttribute, id int) *int64 {
 	return &v
 }
 
-// attrRawByID is kept for backward compatibility but uses string parsing.
-func attrRawByID(attrs []SmartAttribute, id int) *int64 {
-	for _, attr := range attrs {
-		if attr.AttributeID == id {
-			if v, err := strconv.ParseInt(strings.Fields(attr.Raw)[0], 10, 64); err == nil {
-				return &v
-			}
-			vv := int64(attr.Value)
-			return &vv
+func firstInt64(root gjson.Result, paths ...string) *int64 {
+	for _, path := range paths {
+		res := root.Get(path)
+		if !res.Exists() || res.Type != gjson.Number {
+			continue
 		}
+		v := res.Int()
+		return &v
 	}
 	return nil
 }
 
-func firstInt64(data rawSmartData, paths ...[]string) *int64 {
-	for _, p := range paths {
-		if v, ok := getNumber(data, p...); ok {
-			vv := int64(v)
-			return &vv
-		}
-	}
-	return nil
-}
-
-func getNumber(data map[string]any, keys ...string) (float64, bool) {
-	v := nested(data, keys...)
-	switch x := v.(type) {
-	case float64:
-		return x, true
-	case int:
-		return float64(x), true
-	case int64:
-		return float64(x), true
-	case json.Number:
-		f, err := x.Float64()
-		if err == nil {
-			return f, true
-		}
-	}
-	return 0, false
-}
-
-func numberAt(data map[string]any, keys ...string) float64 {
-	v, _ := getNumber(data, keys...)
-	return v
-}
-
-func strAt(data map[string]any, keys ...string) string {
-	v := nested(data, keys...)
-	s, ok := v.(string)
-	if !ok {
+func resultString(result gjson.Result) string {
+	if result.Type != gjson.String {
 		return ""
 	}
-	return s
-}
-
-func nested(data map[string]any, keys ...string) any {
-	var cur any = data
-	for _, k := range keys {
-		switch n := cur.(type) {
-		case map[string]any:
-			cur = n[k]
-		case []any:
-			idx := -1
-			_, _ = fmt.Sscanf(k, "%d", &idx)
-			if idx < 0 || idx >= len(n) {
-				return nil
-			}
-			cur = n[idx]
-		default:
-			return nil
-		}
-	}
-	return cur
+	return result.String()
 }
 
 func intPtrFrom64(v *int64) *int {
