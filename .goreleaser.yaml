@@ -92,11 +92,14 @@ nfpms:
     homepage: https://github.com/{{ .Env.GITHUB_REPOSITORY }}
     file_name_template: "{{ .ConventionalFileName }}"
     scripts:
+      preinstall: packaging/scripts/preinstall.sh
       postinstall: packaging/scripts/postinstall.sh
       preremove: packaging/scripts/preremove.sh
     contents:
       - src: packaging/systemd/diskmon.service
         dst: /lib/systemd/system/diskmon.service
+      - src: packaging/tmpfiles/diskmon.conf
+        dst: /usr/lib/tmpfiles.d/diskmon.conf
       - src: packaging/config/config.yaml
         dst: /etc/diskmon/config.yaml
         type: config|noreplace

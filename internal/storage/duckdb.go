@@ -39,3 +39,7 @@ func (d *DuckDB) Close() error {
 func (d *DuckDB) Conn(ctx context.Context) (*sql.Conn, error) {
 	return d.db.Conn(ctx)
 }
+
+func (d *DuckDB) Ready(ctx context.Context) error {
+	return d.db.PingContext(ctx)
+}

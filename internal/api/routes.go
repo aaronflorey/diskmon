@@ -21,6 +21,8 @@ func NewRouter(logger *slog.Logger, db *storage.DuckDB, events *EventBroker, sta
 	r.Use(middleware.Logger)
 
 	h := NewHandlers(db, events)
+	r.Get("/healthz", h.Healthz)
+	r.Get("/readyz", h.Readyz)
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/drives", h.ListDrives)

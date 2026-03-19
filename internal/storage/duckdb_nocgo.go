@@ -27,6 +27,10 @@ func (d *DuckDB) Conn(ctx context.Context) (*sql.Conn, error) {
 	return nil, ErrCGODisabled
 }
 
+func (d *DuckDB) Ready(ctx context.Context) error {
+	return ErrCGODisabled
+}
+
 func (d *DuckDB) InsertSample(ctx context.Context, info smart.DriveInfo, sample smart.SmartSample, result health.Result) (int64, error) {
 	return 0, ErrCGODisabled
 }

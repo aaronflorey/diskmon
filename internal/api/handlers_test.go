@@ -58,3 +58,33 @@ func TestEventsHandlerUnavailable(t *testing.T) {
 		t.Fatalf("expected event stream unavailable message, got %q", rec.Body.String())
 	}
 }
+
+func TestHealthz(t *testing.T) {
+	h := &Handlers{}
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+
+	h.Healthz(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Fatalf("expected ok status, got %q", rec.Body.String())
+	}
+}
+
+func TestReadyzStorageUnavailable(t *testing.T) {
+	h := &Handlers{}
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	h.Readyz(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"storage unavailable"`) {
+		t.Fatalf("expected storage unavailable message, got %q", rec.Body.String())
+	}
+}

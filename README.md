@@ -57,6 +57,9 @@ For `.deb` and `.rpm` packages:
 - systemd unit is installed as `diskmon.service`
 - config file is installed at `/etc/diskmon/config.yaml`
 - database path defaults to `/var/lib/diskmon/diskmon.duckdb`
+- package install creates a `diskmon` system user/group (service currently runs as `root` for SMART access compatibility)
+- tmpfiles rules are installed at `/usr/lib/tmpfiles.d/diskmon.conf` to create `/var/lib/diskmon` and `/run/diskmon`
+- the systemd unit includes hardening directives (`NoNewPrivileges`, `ProtectSystem`, kernel/proc restrictions)
 
 Service management examples:
 
@@ -65,6 +68,11 @@ sudo systemctl status diskmon
 sudo systemctl restart diskmon
 journalctl -u diskmon -f
 ```
+
+Health check endpoints:
+
+- `GET /healthz` -> liveness (`200`)
+- `GET /readyz` -> readiness (`200` when storage is reachable, `503` otherwise)
 
 ### Docker (GHCR)
 

@@ -8,6 +8,20 @@ Type=simple
 ExecStart=/usr/bin/diskmon daemon --config /etc/diskmon/config.yaml --db /var/lib/diskmon/diskmon.duckdb
 Restart=on-failure
 RestartSec=5s
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+UMask=0027
+ReadWritePaths=/var/lib/diskmon /run/diskmon
 
 # SMART access typically requires elevated privileges.
 User=root

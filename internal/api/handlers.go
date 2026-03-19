@@ -20,6 +20,22 @@ func NewHandlers(db *storage.DuckDB, events *EventBroker) *Handlers {
 	return &Handlers{db: db, events: events}
 }
 
+func (h *Handlers) Healthz(w http.ResponseWriter, r *http.Request) {
+	render.JSON(w, r, HealthResponse{Status: "ok"})
+}
+
+func (h *Handlers) Readyz(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		renderError(w, r, http.StatusServiceUnavailable, "storage unavailable")
+		return
+	}
+	if err := h.db.Ready(r.Context()); err != nil {
+		renderError(w, r, http.StatusServiceUnavailable, "not ready")
+		return
+	}
+	render.JSON(w, r, HealthResponse{Status: "ready"})
+}
+
 func (h *Handlers) ListDrives(w http.ResponseWriter, r *http.Request) {
 	items, err := h.db.ListDrives(r.Context())
 	if err != nil {
