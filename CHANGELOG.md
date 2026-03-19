@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0](https://github.com/aaronflorey/diskmon/compare/v0.2.0...v0.3.0) (2026-03-19)
+
+
+### Features
+
+* add more tests ([23048a9](https://github.com/aaronflorey/diskmon/commit/23048a9ccb0e5ef79e9452b302fd6cfceee21aa3))
+* add smart test scheduling ([f643508](https://github.com/aaronflorey/diskmon/commit/f6435082fc5d02ae6f6ea2f334aa6d2d123c4d88))
+* clean-up code, fix test issues ([34ee80d](https://github.com/aaronflorey/diskmon/commit/34ee80de5db830aa79f98070d54997d45df562ca))
+* improve packaging ([2b1589b](https://github.com/aaronflorey/diskmon/commit/2b1589be41f8fceb1633f7385ef56ae1982c0ef9))
+
+
+### Bug Fixes
+
+* add deb/rpm startup scripts ([fbde136](https://github.com/aaronflorey/diskmon/commit/fbde1362229aed2f500b7e6dc8ad0bbd32d67f1d))
+
 ## [0.2.0](https://github.com/aaronflorey/diskmon/compare/v0.1.0...v0.2.0) (2026-03-04)
 
 
