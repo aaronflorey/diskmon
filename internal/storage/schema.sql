@@ -60,3 +60,12 @@ CREATE TABLE IF NOT EXISTS smart_test_runs (
 );
 
 CREATE SEQUENCE IF NOT EXISTS seq_smart_test_runs START 1;
+
+CREATE TABLE IF NOT EXISTS notification_state (
+    drive_id BIGINT NOT NULL,
+    notification_name TEXT NOT NULL,
+    state TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (drive_id, notification_name),
+    FOREIGN KEY (drive_id) REFERENCES drives(id)
+);

@@ -69,3 +69,10 @@ type SmartTestRunPage struct {
 	PageSize int            `json:"page_size"`
 	Total    int            `json:"total"`
 }
+
+type NotificationState struct {
+	DriveID          int64     `json:"drive_id"`
+	NotificationName string    `json:"notification_name"`
+	State            string    `json:"state"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}

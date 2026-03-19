@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"diskmon/internal/health"
 	"diskmon/internal/smart"
@@ -61,4 +62,12 @@ func (d *DuckDB) DriveTestRuns(ctx context.Context, id int64, page int, pageSize
 
 func (d *DuckDB) DeleteIncompleteSmartTestRuns(ctx context.Context) (int64, error) {
 	return 0, ErrCGODisabled
+}
+
+func (d *DuckDB) GetNotificationState(ctx context.Context, driveID int64, notificationName string) (*NotificationState, error) {
+	return nil, ErrCGODisabled
+}
+
+func (d *DuckDB) UpsertNotificationState(ctx context.Context, driveID int64, notificationName string, state string, updatedAt time.Time) error {
+	return ErrCGODisabled
 }

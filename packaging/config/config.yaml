@@ -12,3 +12,34 @@ web:
 
 log:
   level: INFO
+
+# notifications:
+#   - name: http-alerts
+#     enabled: true
+#     reasons:
+#       pass: true
+#       fail: true
+#     http:
+#       url: https://example.com/diskmon/webhook
+#
+#   - name: slack-webhook
+#     slack:
+#       webhook_url: https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX
+#
+#   - name: slack-sdk
+#     enabled: false
+#     reasons:
+#       pass: false
+#       fail: true
+#     slack:
+#       bot_token: xoxb-...
+#       channel_id: C0123456789
+#
+#   - name: discord-webhook
+#     discord:
+#       webhook_url: https://discord.com/api/webhooks/...
+#
+#   - name: discord-sdk
+#     discord:
+#       bot_token: ...
+#       channel_id: "123456789012345678"

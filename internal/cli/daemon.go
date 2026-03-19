@@ -16,6 +16,7 @@ import (
 	"diskmon/internal/api"
 	"diskmon/internal/config"
 	"diskmon/internal/health"
+	"diskmon/internal/notification"
 	"diskmon/internal/smart"
 	"diskmon/internal/storage"
 
@@ -55,6 +56,10 @@ func newDaemonCmd(cfg *config.Config, logger *slog.Logger) *cobra.Command {
 			collector := smart.NewCollector(smart.NewExecRunner(), logger)
 			evaluator := health.NewEvaluator(health.DefaultRules())
 			events := api.NewEventBroker()
+			notificationTargets, err := buildNotificationTargets(cfg)
+			if err != nil {
+				return err
+			}
 
 			apiServer := api.NewServer(cfg.WebListen, logger, db, events)
 			errCh := make(chan error, 1)
@@ -77,19 +82,7 @@ func newDaemonCmd(cfg *config.Config, logger *slog.Logger) *cobra.Command {
 			defer ticker.Stop()
 
 			runCollection := func() {
-				results, err := collector.CollectAll(ctx, drives)
-				if err != nil {
-					logger.Error("collection failed", "error", err)
-					return
-				}
-				for _, res := range results {
-					healthResult := evaluator.Evaluate(res.Sample)
-					if _, err := db.InsertSample(ctx, res.Info, res.Sample, healthResult); err != nil {
-						logger.Error("failed storing sample", "device", res.Info.Device, "error", err)
-						continue
-					}
-					events.Publish("sample.inserted", res.Info.Device)
-				}
+				runCollectionCycle(ctx, drives, collector, evaluator, db, events, notificationTargets, logger)
 			}
 
 			runCollection()
@@ -115,6 +108,187 @@ func newDaemonCmd(cfg *config.Config, logger *slog.Logger) *cobra.Command {
 			}
 		},
 	}
+}
+
+type sampleCollector interface {
+	CollectAll(ctx context.Context, devices []string) ([]smart.CollectResult, error)
+}
+
+type healthEvaluator interface {
+	Evaluate(sample smart.SmartSample) health.Result
+}
+
+type daemonStorage interface {
+	InsertSample(ctx context.Context, info smart.DriveInfo, sample smart.SmartSample, result health.Result) (int64, error)
+	ListDrives(ctx context.Context) ([]storage.DriveSummary, error)
+	GetNotificationState(ctx context.Context, driveID int64, notificationName string) (*storage.NotificationState, error)
+	UpsertNotificationState(ctx context.Context, driveID int64, notificationName string, state string, updatedAt time.Time) error
+}
+
+type eventPublisher interface {
+	Publish(eventType string, device string)
+}
+
+type notificationDispatcher interface {
+	DispatchIfNeeded(ctx context.Context, req notification.DispatchRequest) (notification.DispatchResult, error)
+}
+
+type notificationTarget struct {
+	name       string
+	dispatcher notificationDispatcher
+}
+
+func runCollectionCycle(
+	ctx context.Context,
+	drives []string,
+	collector sampleCollector,
+	evaluator healthEvaluator,
+	db daemonStorage,
+	events eventPublisher,
+	targets []notificationTarget,
+	logger *slog.Logger,
+) {
+	results, err := collector.CollectAll(ctx, drives)
+	if err != nil {
+		logger.Error("collection failed", "error", err)
+		return
+	}
+
+	for _, res := range results {
+		healthResult := evaluator.Evaluate(res.Sample)
+		if _, err := db.InsertSample(ctx, res.Info, res.Sample, healthResult); err != nil {
+			logger.Error("failed storing sample", "device", res.Info.Device, "error", err)
+			continue
+		}
+
+		events.Publish("sample.inserted", res.Info.Device)
+
+		if len(targets) == 0 {
+			continue
+		}
+
+		driveID, err := lookupDriveIDByDevice(ctx, db, res.Info.Device)
+		if err != nil {
+			logger.Error("failed resolving drive id for notifications", "device", res.Info.Device, "error", err)
+			continue
+		}
+
+		updatedAt := res.Sample.CollectedAt
+		if updatedAt.IsZero() {
+			updatedAt = time.Now().UTC()
+		}
+
+		for _, target := range targets {
+			var previousStatus *health.Status
+			previousState, err := db.GetNotificationState(ctx, driveID, target.name)
+			if err != nil {
+				logger.Error("failed loading notification dedupe state", "device", res.Info.Device, "notification", target.name, "error", err)
+				continue
+			}
+			if previousState != nil {
+				previousStatus = parseStoredHealthStatus(previousState.State)
+			}
+
+			dispatchResult, err := target.dispatcher.DispatchIfNeeded(ctx, notification.DispatchRequest{
+				DriveID:        res.Info.Device,
+				PreviousStatus: previousStatus,
+				Current:        healthResult,
+			})
+			if err != nil {
+				logger.Error("notification dispatch failed", "device", res.Info.Device, "notification", target.name, "error", err)
+			}
+
+			for _, outcome := range dispatchResult.Outcomes {
+				if err := db.UpsertNotificationState(ctx, driveID, outcome.Name, string(healthResult.Status), updatedAt); err != nil {
+					logger.Error("failed persisting notification dedupe state", "device", res.Info.Device, "notification", outcome.Name, "error", err)
+				}
+			}
+		}
+	}
+}
+
+func lookupDriveIDByDevice(ctx context.Context, db daemonStorage, device string) (int64, error) {
+	drives, err := db.ListDrives(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, drive := range drives {
+		if drive.Device == device {
+			return drive.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("drive %s not found", device)
+}
+
+func parseStoredHealthStatus(value string) *health.Status {
+	status := health.Status(strings.ToUpper(strings.TrimSpace(value)))
+	switch status {
+	case health.StatusGreen, health.StatusYellow, health.StatusRed, health.StatusUnknown:
+		return &status
+	default:
+		return nil
+	}
+}
+
+func buildNotificationTargets(cfg *config.Config) ([]notificationTarget, error) {
+	if len(cfg.Notifications) == 0 {
+		return nil, nil
+	}
+
+	targets := make([]notificationTarget, 0, len(cfg.Notifications))
+	for _, cfgEntry := range cfg.Notifications {
+		entry := configNotificationToEntry(cfgEntry)
+		dispatcher, err := notification.NewDispatcher([]notification.Entry{entry}, nil, 0)
+		if err != nil {
+			return nil, fmt.Errorf("build notification dispatcher %q: %w", entry.Name, err)
+		}
+		targets = append(targets, notificationTarget{
+			name:       entry.Name,
+			dispatcher: dispatcher,
+		})
+	}
+	return targets, nil
+}
+
+func configNotificationToEntry(in config.NotificationConfig) notification.Entry {
+	entry := notification.Entry{
+		Name:    in.Name,
+		Enabled: in.Enabled,
+		OnPass:  in.Reasons.Pass,
+		OnFail:  in.Reasons.Fail,
+	}
+
+	switch {
+	case in.HTTP != nil:
+		entry.Provider.Type = notification.ProviderHTTP
+		entry.Provider.HTTP.URL = in.HTTP.URL
+	case in.Slack != nil:
+		entry.Provider.Type = notification.ProviderSlack
+		if in.Slack.WebhookURL != "" {
+			entry.Provider.Slack.Mode = notification.ModeWebhook
+			entry.Provider.Slack.WebhookURL = in.Slack.WebhookURL
+		} else {
+			entry.Provider.Slack.Mode = notification.ModeSDK
+			entry.Provider.Slack.APIToken = in.Slack.BotToken
+			if in.Slack.ChannelID != "" {
+				entry.Provider.Slack.ChannelIDs = []string{in.Slack.ChannelID}
+			}
+		}
+	case in.Discord != nil:
+		entry.Provider.Type = notification.ProviderDiscord
+		if in.Discord.WebhookURL != "" {
+			entry.Provider.Discord.Mode = notification.ModeWebhook
+			entry.Provider.Discord.WebhookURL = in.Discord.WebhookURL
+		} else {
+			entry.Provider.Discord.Mode = notification.ModeSDK
+			entry.Provider.Discord.BotToken = in.Discord.BotToken
+			if in.Discord.ChannelID != "" {
+				entry.Provider.Discord.ChannelIDs = []string{in.Discord.ChannelID}
+			}
+		}
+	}
+
+	return entry
 }
 
 func configureSmartTestCron(
