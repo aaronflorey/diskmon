@@ -82,18 +82,7 @@ func buildSlack(entry Entry) (Sender, error) {
 		if url == "" {
 			return nil, errors.New("slack webhook url is required for webhook mode")
 		}
-
-		svc := notifyhttp.New()
-		svc.AddReceivers(&notifyhttp.Webhook{
-			URL:         url,
-			Method:      stdhttp.MethodPost,
-			ContentType: "application/json; charset=utf-8",
-			BuildPayload: func(subject, message string) any {
-				return map[string]string{"text": subject + "\n" + message}
-			},
-		})
-
-		return notify.NewWithServices(svc), nil
+		return buildWebhookSender(url, "text"), nil
 	default:
 		return nil, fmt.Errorf("unsupported slack mode %q", cfg.Mode)
 	}
@@ -136,21 +125,23 @@ func buildDiscord(entry Entry) (Sender, error) {
 		if url == "" {
 			return nil, errors.New("discord webhook url is required for webhook mode")
 		}
-
-		svc := notifyhttp.New()
-		svc.AddReceivers(&notifyhttp.Webhook{
-			URL:         url,
-			Method:      stdhttp.MethodPost,
-			ContentType: "application/json; charset=utf-8",
-			BuildPayload: func(subject, message string) any {
-				return map[string]string{"content": subject + "\n" + message}
-			},
-		})
-
-		return notify.NewWithServices(svc), nil
+		return buildWebhookSender(url, "content"), nil
 	default:
 		return nil, fmt.Errorf("unsupported discord mode %q", cfg.Mode)
 	}
+}
+
+func buildWebhookSender(url, payloadKey string) Sender {
+	svc := notifyhttp.New()
+	svc.AddReceivers(&notifyhttp.Webhook{
+		URL:         url,
+		Method:      stdhttp.MethodPost,
+		ContentType: "application/json; charset=utf-8",
+		BuildPayload: func(subject, message string) any {
+			return map[string]string{payloadKey: subject + "\n" + message}
+		},
+	})
+	return notify.NewWithServices(svc)
 }
 
 func trimNonEmpty(values []string) []string {

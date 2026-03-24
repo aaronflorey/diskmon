@@ -154,6 +154,14 @@ func runCollectionCycle(
 		return
 	}
 
+	var driveIDByDevice map[string]int64
+	if len(targets) > 0 {
+		driveIDByDevice, err = buildDriveIDMap(ctx, db)
+		if err != nil {
+			logger.Error("failed loading drive map for notifications", "error", err)
+		}
+	}
+
 	for _, res := range results {
 		healthResult := evaluator.Evaluate(res.Sample)
 		if _, err := db.InsertSample(ctx, res.Info, res.Sample, healthResult); err != nil {
@@ -163,13 +171,13 @@ func runCollectionCycle(
 
 		events.Publish("sample.inserted", res.Info.Device)
 
-		if len(targets) == 0 {
+		if len(targets) == 0 || driveIDByDevice == nil {
 			continue
 		}
 
-		driveID, err := lookupDriveIDByDevice(ctx, db, res.Info.Device)
-		if err != nil {
-			logger.Error("failed resolving drive id for notifications", "device", res.Info.Device, "error", err)
+		driveID, ok := driveIDByDevice[res.Info.Device]
+		if !ok {
+			logger.Error("drive not found for notifications", "device", res.Info.Device)
 			continue
 		}
 
@@ -207,17 +215,16 @@ func runCollectionCycle(
 	}
 }
 
-func lookupDriveIDByDevice(ctx context.Context, db daemonStorage, device string) (int64, error) {
+func buildDriveIDMap(ctx context.Context, db daemonStorage) (map[string]int64, error) {
 	drives, err := db.ListDrives(ctx)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	m := make(map[string]int64, len(drives))
 	for _, drive := range drives {
-		if drive.Device == device {
-			return drive.ID, nil
-		}
+		m[drive.Device] = drive.ID
 	}
-	return 0, fmt.Errorf("drive %s not found", device)
+	return m, nil
 }
 
 func parseStoredHealthStatus(value string) *health.Status {
